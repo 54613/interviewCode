@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <link
+      href="https://spec.commonmark.org/dingus/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.7.14"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+      body {
+        padding: 30px 20px;
+      }
+      .content {
+        margin-bottom: 100px;
+      }
+      label {
+        display: table;
+        width: 100%;
+      }
+      label:hover{
+        background: #e8e8e8;
+        cursor: pointer;
+      }
+      .btns {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        right: 20px;
+        display: flex;
+        justify-content: space-between;
+        /* opacity: 0;
+        transition: opacity 2s ease-out; */
+      }
+      .btns:hover {
+        opacity: 1;
+      }
+      button {
+        /* Variables */
+        --button_radius: 0.75em;
+        --button_color: #e8e8e8;
+        --button_outline_color: #000000;
+        font-size: 17px;
+        font-weight: bold;
+        border: none;
+        border-radius: var(--button_radius);
+        background: var(--button_outline_color);
+      }
+
+      .button_top {
+        display: block;
+        box-sizing: border-box;
+        border: 2px solid var(--button_outline_color);
+        border-radius: var(--button_radius);
+        padding: 0.75em 1.5em;
+        background: var(--button_color);
+        color: var(--button_outline_color);
+        transform: translateY(-0.2em);
+        transition: transform 0.1s ease;
+      }
+
+      button:hover .button_top {
+        transform: translateY(-0.33em);
+      }
+
+      button:active .button_top {
+        transform: translateY(0);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div class="content">
+        <h3>{{currentIndex}}-{{title}}</h3>
+        <div v-html="desc"></div>
+        <div v-if="category==='Choice'">
+          <form>
+            <span>{{options.isMulti?'多选':'单选'}}</span>
+            <label
+              v-for="(item,index) in options.options"
+              :for="item"
+              :key="item"
+            >
+              <input type="checkbox" :id="item" />
+              {{item}}
+            </label>
+          </form>
+        </div>
+
+        <div v-show="showExplanation">
+          <h3>解析：</h3>
+          <div v-if="category==='Choice'">答案为:{{getAnswer(options)}}</div>
+          <div v-html="explanation"></div>
+        </div>
+      </div>
+
+      <div class="btns">
+        <button @click="prev"><span class="button_top">上一题</span></button>
+        <button @click="show"><span class="button_top">查看解析</span></button>
+        <button @click="next"><span class="button_top">下一题</span></button>
+      </div>
+    </div>
+    <script>
+      new Vue({
+        el: '#app',
+        data: {
+          data: {},
+          exerciseKey: '', // 题目的关键字
+          prevExerciseKey: '', // 上一个题目
+          nextExerciseKey: '', // 下一个题目
+          title: '',
+          currentIndex: '',
+          desc: '',
+          category: '',
+          options: [],
+          explanation: '',
+          showExplanation: false,
+        },
+        created() {
+          this.exerciseKey = window.localStorage.getItem('exerciseKey')
+          this.getData(
+            this.exerciseKey || 'a4b9ded4-e430-4df9-8857-4d870e9c35cc'
+          )
+        },
+        watch:{
+          currentIndex:{
+            handler(val){
+              document.title = `${val}`
+            },
+            immediate: true
+          }
+        },
+        methods: {
+          showData(res) {
+            const {
+              currentIndex,
+              exerciseKey,
+              prev,
+              next,
+              title,
+              desc,
+              explanation,
+              category,
+              renderType,
+              options,
+            } = res
+
+            this.currentIndex = currentIndex
+            this.exerciseKey = exerciseKey
+            this.prevExerciseKey = prev
+            this.nextExerciseKey = next
+            this.title = title
+            this.desc = marked.parse(desc || '')
+            this.category = category
+            this.options = JSON.parse(options)
+            this.explanation =
+              renderType === 'md'
+                ? marked.parse(explanation || '')
+                : explanation
+
+            window.localStorage.setItem('exerciseKey', this.exerciseKey)
+          },
+          getData(key) {
+            axios
+              .get('https://eapi2.ecool.fun/exercise/practice/detail', {
+                params: {
+                  vid: 5,
+                  title: '全部',
+                  orderBy: 'default',
+                  order: 'asc',
+                  exerciseKey: key,
+                },
+              })
+              .then((response) => {
+                const res = response?.data?.data
+                this.data = res
+                this.showData(res)
+              })
+              .catch((error) => {
+                console.log(error)
+              })
+          },
+          // 选择题拼凑答案
+          getAnswer(options) {
+            let answer = ''
+            options.answer.forEach((item) => {
+              answer = answer + options.options[item] + ','
+            })
+            return answer
+          },
+          // 上一题
+          prev() {
+            this.showExplanation = false
+            this.getData(this.prevExerciseKey)
+          },
+          // 下一题
+          next() {
+            this.showExplanation = false
+            this.getData(this.nextExerciseKey)
+          },
+          // 查看答案
+          show() {
+            this.showExplanation = !this.showExplanation
+          },
+        },
+      })
+    </script>
+  </body>
+</html>
+
+<!-- 
+// 请求路径样例：https://eapi2.ecool.fun/exercise/practice/detail?vid=5&tagId=&title=%E5%85%A8%E9%83%A8&orderBy=updateTime&order=desc&exerciseKey=9792c9df-e258-4faf-a4a4-9b3358241db8
+// "data": {
+// 	"id": 12,
+// 	"exerciseKey": "a4b9ded4-e430-4df9-8857-4d870e9c35cc",
+// 	"category": "Choice",
+// 	"renderType": "md",
+// 	"title": "输出是什么？",
+// 	"desc": "```javascript\nfunction sayHi() {\n  console.log(name)\n  console.log(age)\n  var name = 'Lydia'\n  let age = 21\n}\n\nsayHi()\n```",
+// 	"options": "{\"options\":[\"Lydia 和 undefined\",\"Lydia 和 ReferenceError\",\"ReferenceError 和 21\",\"undefined 和 ReferenceError\"],\"isMulti\":false,\"answer\":[3]}",
+// 	"explanation": "在函数内部 `ReferenceError` 错误。",
+// 	"level": 0.5,
+// 	"status": 2,
+// 	"appId": 7,
+// 	"createAt": "2021-07-02T15:33:04.000Z",
+// 	"updateAt": "2021-07-05T23:17:55.000Z",
+// 	"updateUserId": 11,
+// 	"isCollected": false,
+// 	"currentIndex": 728,
+// 	"prev": "5f0460dc-84ca-425e-8629-7aec874d024c",
+// 	"next": "b132d075-c2fe-4b83-8c74-444733612862"
+// } 
+
+
+ // category: 题目类型: Choice QA
+ // renderType: 答案的响应格式: md html
+ // title : 题目名称
+ // desc : 题目内容
+ // options : 选择题的选项，此时category === Choice  ； {options，isMulti，answer}
+ // explanation: 答案解析
+ // prev: 上一题id
+ // next: 下一题id
+ // currentIndex: 当前题目 顺序
+ // level: 当前题目难度
+-->
